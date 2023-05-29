@@ -41,6 +41,11 @@ dependencies {
     runtimeOnly("org.postgresql:postgresql")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("io.mockk:mockk:1.11.0")
+    implementation("org.apache.commons:commons-email:1.5")
+    implementation("org.quartz-scheduler:quartz:2.3.2")
+
+
 }
 
 flyway {

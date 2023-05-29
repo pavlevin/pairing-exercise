@@ -35,6 +35,11 @@ class OrganisationRepository {
         return createOrganisation(organisation, id)
     }
 
+    @Transactional(readOnly = true)
+    fun getOrganisationById(id: String): OrganisationResponse? {
+        return jdbcTemplate.query(organisationQuery() + "where o.id::uuid = ?::uuid", organisationMapper(), id).singleOrNull()
+    }
+
     private fun valuesValid(organisation: OrganisationRequest): Boolean {
         val reply: Int? = jdbcTemplate.query(
             "select count(country_code) from organisations_schema.countries c WHERE c.country_code = ?",
