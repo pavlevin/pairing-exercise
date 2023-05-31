@@ -1,11 +1,13 @@
-package io.billie.functional.invoices.resource
+package io.billie.functional
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.billie.functional.data.Fixtures
 import io.billie.invoices.model.Currency
+import io.billie.invoices.model.InvoiceStatus
 import io.billie.invoices.model.InvoicesRequest
 import io.billie.invoices.model.InvoicesResponse
 import io.billie.organisations.viewmodel.Entity
+import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -24,7 +26,7 @@ import java.util.*
 
 @AutoConfigureMockMvc
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT)
-class InvoicesResourceTest{
+class CanCreateAndSentInvoice {
 
     @LocalServerPort
     private val port = 8080
@@ -58,8 +60,8 @@ class InvoicesResourceTest{
 
         val invoiceResponse = mockMvc.perform(
             MockMvcRequestBuilders.get("/invoices")
-                .param("invoiceId", invoiceId)
-                .param("supplierId", invoicesRequest.supplierId)
+                .param("invoice_id", invoiceId)
+                .param("supplier_id", invoicesRequest.supplierId)
                 .contentType(MediaType.APPLICATION_JSON)
         )
             .andExpect(MockMvcResultMatchers.status().isOk)
@@ -75,6 +77,30 @@ class InvoicesResourceTest{
         template.update("DELETE FROM organisations_schema.invoices where invoice_id = '${invoicesRequest.invoiceId}'")
         template.update("DELETE FROM organisations_schema.organisations where id in ('$supplierId', '$buyerId')")
         template.update("DELETE FROM organisations_schema.contact_details where id in ('${invoice.supplier.contactDetails.id}'::uuid, '${invoice.buyer.contactDetails.id}'::uuid)")
+    }
+
+    @Test
+    fun `Can not create invoice if buyer is missing in database`() {
+        val supplierId = postOrg(Fixtures.orgRequestJson()).toString()
+        val buyerId = UUID.randomUUID().toString()
+        val invoiceId = UUID.randomUUID().toString()
+        val invoicesRequest =
+            InvoicesRequest(invoiceId, buyerId, supplierId, BigDecimal.valueOf(12345.67), Currency.EUR)
+        postInvoice(invoicesRequest)
+            .andExpect(MockMvcResultMatchers.status().isBadRequest)
+        template.update("DELETE FROM organisations_schema.organisations where id in ('$supplierId')")
+    }
+
+    @Test
+    fun `Can not create invoice if supplier is missing in database`() {
+        val supplierId =  UUID.randomUUID().toString()
+        val buyerId = postOrg(Fixtures.orgRequestJson()).toString()
+        val invoiceId = UUID.randomUUID().toString()
+        val invoicesRequest =
+            InvoicesRequest(invoiceId, buyerId, supplierId, BigDecimal.valueOf(12345.67), Currency.EUR)
+        postInvoice(invoicesRequest)
+            .andExpect(MockMvcResultMatchers.status().isBadRequest)
+        template.update("DELETE FROM organisations_schema.organisations where id in ('$buyerId')")
     }
 
     @Test
@@ -96,6 +122,55 @@ class InvoicesResourceTest{
         postInvoice(defaultRequest.copy(ccy = null))
             .andExpect(MockMvcResultMatchers.status().isBadRequest)
             .andExpect { it.response.errorMessage.equals("Request for invoice creation is not valid. Missing field(s): <currency>") }
+    }
+
+
+    @Test
+    fun `Invoice successfully sent to buyer`() {
+        val supplierId = postOrg(Fixtures.orgRequestJson()).toString()
+        val buyerId = postOrg(Fixtures.orgRequestJson()).toString()
+        val invoiceId = UUID.randomUUID().toString()
+        val invoicesRequest =
+            InvoicesRequest(invoiceId, buyerId, supplierId, BigDecimal.valueOf(12345.67), Currency.EUR)
+        postInvoice(invoicesRequest).andExpect(MockMvcResultMatchers.status().isOk)
+        val shippingNotification = InvoicesRequest(invoiceId, supplierId = supplierId)
+        mockMvc.perform(
+            MockMvcRequestBuilders.post("/invoices/shipped")
+                .content(mapper.writeValueAsString(shippingNotification))
+                .contentType(MediaType.APPLICATION_JSON)
+        )
+            .andExpect(MockMvcResultMatchers.status().isOk)
+
+        val invoiceResponse = mockMvc.perform(
+            MockMvcRequestBuilders.get("/invoices")
+                .param("invoice_id", invoiceId)
+                .param("supplier_id", invoicesRequest.supplierId)
+                .contentType(MediaType.APPLICATION_JSON)
+        )
+            .andExpect(MockMvcResultMatchers.status().isOk)
+            .andReturn()
+        val invoice = mapper.readValue(invoiceResponse.response.contentAsString, InvoicesResponse::class.java)
+        Assertions.assertEquals(InvoiceStatus.SENT, invoice.status)
+
+        template.update("DELETE FROM organisations_schema.invoices where invoice_id = '${invoicesRequest.invoiceId}'")
+        template.update("DELETE FROM organisations_schema.organisations where id in ('$supplierId', '$buyerId')")
+        template.update("DELETE FROM organisations_schema.contact_details where id in ('${invoice.supplier.contactDetails.id}'::uuid, '${invoice.buyer.contactDetails.id}'::uuid)")
+    }
+
+    @Test
+    fun `Invoice is not sent to buyer cause it was not previously received`() {
+        val supplierId = postOrg(Fixtures.orgRequestJson()).toString()
+        val buyerId = postOrg(Fixtures.orgRequestJson()).toString()
+        val invoiceId = UUID.randomUUID().toString()
+        val shippingNotification = InvoicesRequest(invoiceId, supplierId = supplierId)
+        mockMvc.perform(
+            MockMvcRequestBuilders.post("/invoices/shipped")
+                .content(mapper.writeValueAsString(shippingNotification))
+                .contentType(MediaType.APPLICATION_JSON)
+        )
+            .andExpect(MockMvcResultMatchers.status().isBadRequest)
+
+        template.update("DELETE FROM organisations_schema.organisations where id in ('$supplierId', '$buyerId')")
     }
 
     fun postInvoice(request: InvoicesRequest): ResultActions {

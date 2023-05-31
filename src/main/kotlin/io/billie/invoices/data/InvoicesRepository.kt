@@ -55,8 +55,8 @@ class InvoicesRepository(
     @Transactional
     fun createInvoice(request: InvoicesRequest): UUID {
         val sql =
-            "INSERT INTO organisations_schema.invoices(invoice_id, buyer_id, supplier_id, status, amount, ccy, invoice_date, updated_at, updated_by) " +
-                    "values(?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO organisations_schema.invoices(invoice_id, buyer_id, supplier_id, status, amount, ccy, invoice_date, updated_by) " +
+                    "values(?, ?, ?, ?, ?, ?, ?, ?)"
         val keyHolder: KeyHolder = GeneratedKeyHolder()
         jdbcTemplate.update(
             { connection ->
@@ -68,8 +68,7 @@ class InvoicesRepository(
                 ps.setBigDecimal(5, request.amount)
                 ps.setString(6, request.ccy!!.name)
                 ps.setDate(7, Date(System.currentTimeMillis()))
-                ps.setTimestamp(8, Timestamp.valueOf(now()))
-                ps.setString(9, "invoices_service")
+                ps.setString(8, "invoices_service")
                 ps
             }, keyHolder
         )

@@ -23,7 +23,7 @@ import javax.validation.Valid
 class InvoicesResource(val service: InvoicesService) {
 
     @GetMapping
-    fun getInvoiceByInvoiceId(@RequestParam invoiceId: String, @RequestParam supplierId: String): InvoicesResponse {
+    fun getInvoiceByInvoiceId(@RequestParam("invoice_id") invoiceId: String, @RequestParam("supplier_id") supplierId: String): InvoicesResponse {
         return service.getInvoiceByIdAndSupplier(InvoicesRequest(invoiceId, supplierId = supplierId))
     }
 

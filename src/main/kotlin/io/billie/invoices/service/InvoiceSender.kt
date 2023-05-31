@@ -32,9 +32,8 @@ class InvoiceSender(
 
     @PostConstruct
     fun init() {
-        val jobKey = JobKey.jobKey("UpdateStatusesForSentInvoicesJob")
         val job = JobBuilder.newJob(UpdateStatusesForSentInvoicesJob::class.java)
-            .withIdentity(jobKey)
+            .withIdentity(JobKey.jobKey("UpdateStatusesForSentInvoicesJob"))
             .setJobData(JobDataMap(mapOf("invoiceSender" to this)))
             .build()
         val trigger = CronTriggerImpl()

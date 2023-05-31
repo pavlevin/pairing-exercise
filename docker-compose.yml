@@ -19,6 +19,7 @@ services:
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
   database:
+    container_name: "database"
     hostname: database
     image: "postgres:13.2-alpine"
     env_file:
@@ -27,6 +28,8 @@ services:
       - "5432:5432"
   service:
     build: .
+    container_name: "billie-service"
+    image: "billie-service:latest"
     links:
       - database
       - traefik
@@ -38,5 +41,5 @@ services:
       - service.env
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.organisations.rule=PathPrefix(`/swagger-ui`) || PathPrefix(`/organisations`) || PathPrefix(`/countries`)"
+      - "traefik.http.routers.organisations.rule=PathPrefix(`/swagger-ui`) || PathPrefix(`/organisations`) || PathPrefix(`/countries`) || PathPrefix(`/invoices`)"
       - "traefik.http.services.organisations.loadbalancer.server.port=8080"
